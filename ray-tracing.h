@@ -21,6 +21,10 @@ class Vec
 	Vec::Vec(double x, double y, double z);
     Vec(ifstream& ifs);
 	double dot(Vec v);
+	Vec Vec::normalize();
+	double Vec::getLength();
+	Vec Vec::divide(double v);
+	Vec Vec::subtract(Vec v);
 
 };
 
@@ -38,6 +42,7 @@ class Color
     Color(double r, double g, double b);
 	Color add(Color c);
 	Color scale(Color c);
+	bool Color::isEqual(Color c);
 
 };
 
@@ -55,6 +60,8 @@ class Light
 class Ray {
 	public:
 		Ray(Vec a, Vec b);
+		Vec Ray::getP0();
+		Vec Ray::getP1();
 	private:
 		Vec p0; 
 		Vec p1;
@@ -78,6 +85,11 @@ class Figure
  public:
    Figure();
    void initFigure(ifstream& ifs);
+   Color Figure::getTransmissivity();
+   Color Figure::getReflectivity();
+   Color Figure::getColorAmbient();
+   double virtual intersection(const Ray& r, double minT, double maxT) const;
+   
 };
 
 
@@ -91,6 +103,7 @@ class Plane : public Figure
     Vec direction2;
   public:
     Plane(ifstream& ifs);
+	double Plane::intersection(const Ray& r, double minT, double maxT) const
 };
 
 class Sphere : public Figure
@@ -100,5 +113,6 @@ class Sphere : public Figure
     double radius;
   public:
     Sphere(ifstream& ifs);
+	double Sphere::intersection(const Ray& r, double minT, double maxT) const;
 };
 

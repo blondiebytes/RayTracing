@@ -40,6 +40,22 @@ double Vec::dot(Vec v) {
 	return ((x * v.x) + (y * v.y) + (z * v.z));
 }
 
+ Vec Vec::normalize() {
+	 return this->divide(this->getLength());
+}
+
+Vec Vec::divide(double b) {
+	return Vec(x / b, y / b, z / b);
+}
+
+Vec Vec::subtract(Vec v) {
+	return Vec(x - v.x, y - v.y, z - v.z);
+}
+
+double Vec::getLength() {
+	return sqrt((x * x) + (y * y) + (z * z));
+}
+
 
 Color::Color(): red(0.0), green(0.0), blue(0.0) {};
 
@@ -59,6 +75,10 @@ Color Color::scale(Color c) {
 	return Color(red * c.red, green * c.green, blue * c.blue);
 }
 
+bool Color::isEqual(Color c) {
+	return red == c.red && green == c.green && blue == c.blue;
+}
+
 
 
 Figure::Figure(){}
@@ -71,6 +91,18 @@ void Figure::initFigure(ifstream& ifs)
  reflectivity = Color(ifs);
  transmissivity = Color(ifs);
  ifs >> shininess >> indexOfRefraction >> rFlag >> tFlag;
+}
+
+Color Figure::getTransmissivity() {
+	return transmissivity;
+}
+
+Color Figure::getReflectivity() {
+	return reflectivity;
+}
+
+Color Figure::getColorAmbient() {
+	return ambient;
 }
 
 Light::Light(ifstream& ifs) : position(ifs), shading(ifs)
@@ -100,6 +132,14 @@ Plane::Plane(ifstream& ifs) : abcVector(ifs)
 Ray::Ray(Vec a, Vec b) {
 	p0 = a;
 	p1 = b;
+}
+
+Vec Ray::getP0() {
+	return p0;
+}
+
+Vec Ray::getP1() {
+	return p1;
 }
 
 void parseSceneFile(char* sceneName)
@@ -156,7 +196,8 @@ Color RT_trace(const Ray& r, double depth)
 
 	if (pair.second != nullptr) {
 		
-		Ray n = ; // surface normal for figure at i
+		Ray n =
+			; // surface normal for figure at i
 			// figure out if it's entering the object
 		return RT_shade(figure, r, i, normal, entering, depth);
 	}
@@ -172,26 +213,37 @@ pair<double, Figure*> nearestIntersection(const Ray& r,
 {
 	for (int i = 0; i < maxT; i = i + minT) // Because minT is the epsilon? What is maxT / minT ??
 	{
-		pair<double, Figure*> intersection = intersection(r, i, maxT); //intersection(r, minT, maxT) // mad because we aren't calling intersection on anything
-		if (intersection != nullptr) {
+		for each(Figure* fig in shapeList)
+		pair<double, Figure*> intersection = fig->intersection(r, i, maxT); //intersection(r, minT, maxT) // mad because we aren't calling intersection on anything
+		if (intersection != NULL) {
 			return intersection;
 		}
 	}
-	
+
 }
 
 double Sphere::intersection(const Ray& r, double minT, double maxT) const
 {
+
 }
 
 double Plane::intersection(const Ray& r, double minT, double maxT) const
 {
+	double t = (dScalar - ((r->getP0())->dot(abcVector))) / (((r->getP1())->subtract(r->getP0))->dot(abcVector);
+
+	if (t == 0) {
+		return NULL; // will check this higher up b/c NULL = 0;
+	}
+	else {
+		return t;
+	}
 }
 
+// Return the color of OBJ at I as seen along RAY including effects of ambient and directional light sources, and reflected and transmitted rays
 Color RT_shade(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 	bool entering, double depth)
 {
-	Color newColor = ambient * obj->getColorAmbient();
+	Color newColor = obj->getColorAmbient(); // Ambient coor term for OBJ at I ??
 	newColor = newColor.add(RT_lights(obj, ray, i, normal));
 	if (depth < maxDepth) {
 		newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
@@ -205,8 +257,8 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 {
 	Color newColor = Color();
 	for each (Light* light in lightList) {
-		Ray l_ray = Ray(i, light->getPosition());// why does this error?
-		Ray lightDirection = ; // Let lightDirection be the direction of the L_RAY --> do this by normalizing L
+		Ray l_ray = Ray(i, light->getPosition());
+		Vec lightDirection = (((light->getPosition())->subtract(i)).normalize()); // Let lightDirection be the direction of the L_RAY --> do this by normalizing L_ray
 		double dotProduct = lightDirection.dot(normal);
 		if (dotProduct > 0) {
 			// adding diffuse and specular terms for light striking 
@@ -216,7 +268,7 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 				ray);
 			Color lightColors = diffuseColor.add(specularColor);
 			// OBJ along L_Ray at i, scaled by the opacity of objects intersecting L_RAY between i and light
-			Color scaledLightColors = lightColors.scale(obj.transmissivity);
+			Color scaledLightColors = lightColors.scale(obj->getTransmissivity());
 			newColor = newColor.add(scaledLightColors);
 		}
 	}
@@ -235,19 +287,19 @@ Color diffuseShade(Figure* obj, Light* light, double dotProduct)
 {
 	...
 }
-
+.;
 
 Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 	bool entering, double depth)
 {
-	if (obj.transmissivity != new Color()) {
+	if ((obj->getTransmissivity()).isEqual(Color())) {
 		Ray transmittedRay = Ray(i, normal);
-		Ray transmittedDirection = ;// transmittedRay normalized
+		Vec transmittedDirection = ((normal->subtract(i)).normalize());// transmittedRay normalized
 		double dotProduct = transmittedDirection.dot(normal);
 		// If no total internal reflection
 		if (dotProduct < 0) {
 			Color newColor = RT_trace(transmittedRay, depth + 1);
-			newColor = newColor.scale(obj.transmissivity);
+			newColor = newColor.scale(obj->getTransmissivity());
 			return newColor;
 		}
 	}
@@ -260,12 +312,11 @@ Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 
 Color RT_reflect(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal, double depth)
 {
-	// why error because reflectivity is protected?
-	if (obj.reflectivity != new Color()) {
+	if (((obj->getReflectivity()).isEqual(Color()))) {
 		Ray reflectedRay = Ray(i, normal);
 		Color newColor = RT_trace(reflectedRay, depth + 1);
 		//Scale newColor according to the inter-object reflection coefficients kr = (krr, krg, krb) of object OBJ
-		newColor = newColor.scale(obj.reflectivity);
+		newColor = newColor.scale(obj->getReflectivity());
 		return newColor;
 	}
 	else {
