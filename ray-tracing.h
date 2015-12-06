@@ -42,7 +42,9 @@ class Color
     Color(double r, double g, double b);
 	Color add(Color c);
 	Color scale(Color c);
+	Color multiply(Color c);
 	bool Color::isEqual(Color c);
+	string Color::toString();
 
 };
 
@@ -65,7 +67,6 @@ class Ray {
 	private:
 		Vec p0; 
 		Vec p1;
-	//	Color color;
 
 };
 
@@ -88,7 +89,8 @@ class Figure
    Color Figure::getTransmissivity();
    Color Figure::getReflectivity();
    Color Figure::getColorAmbient();
-   double virtual intersection(const Ray& r, double minT, double maxT) const;
+   virtual double intersection(const Ray& r, double minT, double maxT) const;
+   virtual Vec* getNormal(Vec* i);
    
 };
 
@@ -103,6 +105,7 @@ class Plane : public Figure
     Vec direction2;
   public:
     Plane(ifstream& ifs);
+	Vec * getNormal(Vec * i);
 	double Plane::intersection(const Ray& r, double minT, double maxT) const
 };
 
@@ -113,6 +116,7 @@ class Sphere : public Figure
     double radius;
   public:
     Sphere(ifstream& ifs);
+	Vec * getNormal(Vec * i);
 	double Sphere::intersection(const Ray& r, double minT, double maxT) const;
 };
 

@@ -71,13 +71,24 @@ Color Color::add(Color c) {
 	return Color(red + c.red, green + c.green, blue + c.blue);
 }
 
-Color Color::scale(Color c) {
+Color Color::multiply(Color c) {
 	return Color(red * c.red, green * c.green, blue * c.blue);
 }
 
 bool Color::isEqual(Color c) {
 	return red == c.red && green == c.green && blue == c.blue;
 }
+
+string Color::toString() {
+	int r = (int)round(red * 255);
+	int g = (int)round(green * 255);
+	int b = (int)round(blue * 255);
+	char toReturn[12];
+	sprintf_s(toReturn, "%d %d %d", r, g, b);
+	return string(toReturn);
+
+}
+
 
 
 
@@ -103,6 +114,14 @@ Color Figure::getReflectivity() {
 
 Color Figure::getColorAmbient() {
 	return ambient;
+}
+
+Vec* Figure::getNormal(Vec* i) {
+	return NULL;
+}
+
+double Figure::intersection(const Ray& r, double minT, double maxT) const {
+	return NULL;
 }
 
 Light::Light(ifstream& ifs) : position(ifs), shading(ifs)
@@ -171,6 +190,60 @@ void parseSceneFile(char* sceneName)
   ifs.close();
 }
 
+
+
+Vec* Sphere::getNormal(Vec* i) {
+	// normal = line from the center to the point
+	return new Vec(center.subtract(*(i)));
+}
+
+
+double Sphere::intersection(const Ray& r, double minT, double maxT) const
+{
+	Vec h = (r.getP1()).subtract(r.getP0());
+	Vec k = (r.getP0).subtract(r.getP1());
+	
+	// Solve the equation.... using the quadratic formula 
+	// t^2(h*h) + 2t(h*k) + k*k - r^2 = 0;
+	// do - first : (-b - squareroot(b^2 - 4ac))/2a
+	double t = (-(h.dot(k)) - sqrt((h.dot(k) * h.dot(k)) - (4 * h.dot(h) * k.dot(k)))) / (2 * k.dot(k));
+	if (t < minT || t > maxT) {
+		// then do + if the first invalid : (-b + squareroot(b^2 - 4ac))/2a
+		t = (-(h.dot(k)) + sqrt((h.dot(k) * h.dot(k)) - (4 * h.dot(h) * k.dot(k)))) / (2 * k.dot(k));
+		if (t < minT || t > maxT) {
+			// then return null if none of them worked
+			return NULL;
+		}
+	}
+	return t;
+}
+
+Vec* Plane::getNormal(Vec* i) {
+	return &abcVector;
+}
+
+double Plane::intersection(const Ray& r, double minT, double maxT) const
+{
+	double t = (dScalar - ((r.getP0())->dot(abcVector))) / (((r.getP1())->subtract(r.getP0()))->dot(abcVector);
+
+	if (t == 0) {
+		return NULL; // will check this higher up b/c NULL = 0;
+	}
+	else {
+		return t;
+	}
+}
+
+Color** image = new Color*[horizontalResolution];
+
+void initializeImage() {
+	for (int u = 0; u < horizontalResolution; u++) {
+		image[u] = new Color[verticalResolution];
+	}
+}
+
+
+
 void RT_algorithm()
 {
 	Vec origin = Vec();
@@ -178,14 +251,16 @@ void RT_algorithm()
 	{
 		for (int v = 0; v < win_h; v++)
 		{
-			Vec p = Vec(u, v, 0); // ?? is z 0 here or 1 ??
+			Vec p = Vec(u, v, 0);
 			Ray R = Ray(origin, p);
-			//Set color of (u, v) to = RT_trace(R, 1);
+			image[u][v] = RT_trace(R, 1);
 		}
 	}
+	writeImageFile();
 }
 
-
+// Return the cdolor of the first object point hit by RAY
+// Return the background color if RAY hits no object
 Color RT_trace(const Ray& r, double depth)
 {
 	double epsilon = .01;
@@ -196,10 +271,9 @@ Color RT_trace(const Ray& r, double depth)
 
 	if (pair.second != nullptr) {
 		
-		Ray n =
-			; // surface normal for figure at i
-			// figure out if it's entering the object
-		return RT_shade(figure, r, i, normal, entering, depth);
+		Vec n = figure->getNormal(i); // surface normal for figure at i ???
+			// figure out if it's entering the object ???
+		return RT_shade(figure, r, i, n, false, depth);
 	}
 	else {
 		return backgroundColor;
@@ -211,44 +285,32 @@ pair<double, Figure*> nearestIntersection(const Ray& r,
 	double minT, double maxT,
 	bool mayBeTransparent = true)
 {
-	for (int i = 0; i < maxT; i = i + minT) // Because minT is the epsilon? What is maxT / minT ??
-	{
-		for each(Figure* fig in shapeList)
-		pair<double, Figure*> intersection = fig->intersection(r, i, maxT); //intersection(r, minT, maxT) // mad because we aren't calling intersection on anything
+	
+	double currentT = 1000000;
+	Figure* currentFig = NULL;
+	for each(Figure* fig in shapeList) {
+		double intersection = fig->intersection(r, minT, maxT);
 		if (intersection != NULL) {
-			return intersection;
+			if (intersection < currentT && intersection > minT && intersection < maxT) {
+				currentT = intersection;
+				currentFig = fig;
+			}
 		}
 	}
 
-}
-
-double Sphere::intersection(const Ray& r, double minT, double maxT) const
-{
-
-}
-
-double Plane::intersection(const Ray& r, double minT, double maxT) const
-{
-	double t = (dScalar - ((r->getP0())->dot(abcVector))) / (((r->getP1())->subtract(r->getP0))->dot(abcVector);
-
-	if (t == 0) {
-		return NULL; // will check this higher up b/c NULL = 0;
-	}
-	else {
-		return t;
-	}
+	return pair<double, Figure*>(currentT, currentFig);
 }
 
 // Return the color of OBJ at I as seen along RAY including effects of ambient and directional light sources, and reflected and transmitted rays
 Color RT_shade(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 	bool entering, double depth)
 {
-	Color newColor = obj->getColorAmbient(); // Ambient coor term for OBJ at I ??
-	newColor = newColor.add(RT_lights(obj, ray, i, normal));
-	if (depth < maxDepth) {
-		newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
-		newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
-	}
+	Color newColor = (obj->getColorAmbient())->multiply(ambient); // Ambient coor term for OBJ at I ??
+	//newColor = newColor.add(RT_lights(obj, ray, i, normal));
+	//if (depth < maxDepth) {
+		//newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
+		//newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
+	//}
 	return newColor;
 }
 
@@ -268,7 +330,7 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 				ray);
 			Color lightColors = diffuseColor.add(specularColor);
 			// OBJ along L_Ray at i, scaled by the opacity of objects intersecting L_RAY between i and light
-			Color scaledLightColors = lightColors.scale(obj->getTransmissivity());
+			Color scaledLightColors = lightColors.multiply(obj->getTransmissivity());
 			newColor = newColor.add(scaledLightColors);
 		}
 	}
@@ -294,12 +356,12 @@ Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 {
 	if ((obj->getTransmissivity()).isEqual(Color())) {
 		Ray transmittedRay = Ray(i, normal);
-		Vec transmittedDirection = ((normal->subtract(i)).normalize());// transmittedRay normalized
+		Vec transmittedDirection = ((normal.subtract(i)).normalize());// transmittedRay normalized
 		double dotProduct = transmittedDirection.dot(normal);
 		// If no total internal reflection
 		if (dotProduct < 0) {
 			Color newColor = RT_trace(transmittedRay, depth + 1);
-			newColor = newColor.scale(obj->getTransmissivity());
+			newColor = newColor.multiply(obj->getTransmissivity());
 			return newColor;
 		}
 	}
@@ -316,13 +378,33 @@ Color RT_reflect(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal, d
 		Ray reflectedRay = Ray(i, normal);
 		Color newColor = RT_trace(reflectedRay, depth + 1);
 		//Scale newColor according to the inter-object reflection coefficients kr = (krr, krg, krb) of object OBJ
-		newColor = newColor.scale(obj->getReflectivity());
+		newColor = newColor.multiply(obj->getReflectivity());
 		return newColor;
 	}
 	else {
 		// return the zero color Vector
 		return Color();
 	}
+}
+
+
+ void writeImageFile() {
+	 ofstream myfile;
+	 myfile.open("picture1.ppm");
+	 char* c = new char[horizontalResolution * verticalResolution * 12];
+	 int index = 0;
+	 for (int i = 0; i < horizontalResolution; i++) {
+		 for (int j = 0; j < verticalResolution; j++) {
+			 Color color = image[i][j];
+			 string s = color.toString();
+			 for (int k = 0; k < 13; k++) {
+				 c[index + k] = s[k];
+			 }
+			 index = index + 12;
+		 }
+	 }
+	 myfile.write(c, horizontalResolution * verticalResolution * 12);
+	 myfile.close();
 }
 
 int main(int, char *argv[])
