@@ -25,6 +25,8 @@ class Vec
 	double Vec::getLength();
 	Vec Vec::divide(double v);
 	Vec Vec::subtract(Vec v);
+	Vec Vec::add(Vec v);
+	Vec Vec::scale(double t);
 
 };
 
@@ -89,8 +91,8 @@ class Figure
    Color Figure::getTransmissivity();
    Color Figure::getReflectivity();
    Color Figure::getColorAmbient();
-   virtual double intersection(const Ray& r, double minT, double maxT) const;
-   virtual Vec* getNormal(Vec* i);
+   virtual double intersection(const Ray& r, double minT, double maxT) const = 0;
+   virtual Vec* getNormal(Vec* i) = 0;
    
 };
 
@@ -98,15 +100,15 @@ class Figure
 
 class Plane : public Figure
 {
-  private:
-    Vec abcVector;
-    double dScalar;
-    Vec direction1;
-    Vec direction2;
-  public:
-    Plane(ifstream& ifs);
+private:
+	Vec abcVector;
+	double dScalar;
+	Vec direction1;
+	Vec direction2;
+public:
+	Plane(ifstream& ifs);
 	Vec * getNormal(Vec * i);
-	double Plane::intersection(const Ray& r, double minT, double maxT) const
+	double Plane::intersection(const Ray& r, double minT, double maxT) const;
 };
 
 class Sphere : public Figure
