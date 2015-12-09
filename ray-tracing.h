@@ -42,6 +42,9 @@ class Color
 	Color();
     Color(ifstream& ifs);
     Color(double r, double g, double b);
+	double Color::getRed();
+	double Color::getBlue();
+	double Color::getGreen();
 	Color add(Color c);
 	Color scale(Color c);
 	Color multiply(Color c);

@@ -75,6 +75,18 @@ Color::Color(ifstream& ifs)
 Color::Color(double r, double g, double b) : red(r), green(g), blue(b)
 {}
 
+double Color::getRed() {
+	return red;
+}
+
+double Color::getBlue() {
+	return blue;
+}
+
+double Color::getGreen() {
+	return green;
+}
+
 Color Color::add(Color c) {
 	return Color(red + c.red, green + c.green, blue + c.blue);
 }
@@ -245,31 +257,43 @@ double Plane::intersection(const Ray& r, double minT, double maxT) const
 		return t;
 	}
 }
+	
+Color image[1000][1000];
 
-Color** image = new Color*[horizontalResolution];
-
-void initializeImage() {
-	for (int u = 0; u < horizontalResolution; u++) {
-		image[u] = new Color[verticalResolution];
-	}
-}
+//void initializeImage() {
+//	for (int u = 0; u < horizontalResolution; u++) {
+//		image[u] = new Color[verticalResolution];
+//	}
+//}
 
 void writeImageFile() {
 	ofstream myfile;
 	myfile.open("picture.ppm");
 	char* c = new char[horizontalResolution * verticalResolution * 12];
 	int index = 0;
+	myfile << "P3" << endl;
+	//cout << "P3" << endl;
+	myfile << "500 500" << endl;
+	//cout << "500 500" << endl;
+	myfile << "255" << endl;
+	//cout << "255" << endl;
 	for (int i = 0; i < horizontalResolution; i++) {
 		for (int j = 0; j < verticalResolution; j++) {
 			Color color = image[i][j];
-			string s = color.toString();
-			for (int k = 0; k < 13; k++) {
-				c[index + k] = s[k];
-			}
-			index = index + 12;
+			//string s = color.toString();
+			int r = (int)round(color.getRed() * 255);
+			int g = (int)round(color.getGreen() * 255);
+			int b = (int)round(color.getBlue() * 255);
+			myfile << r << " " << g << " " << b << endl;
+			//cout << r << " " << g << " " << b << endl;
+			//myfile.write(s, 12 + index);
+			//for (int k = 0; k < 13; k++) {
+			//	c[index + k] = s[k];
+			//}
+			//index = index + 12;
 		}
 	}
-	myfile.write(c, horizontalResolution * verticalResolution * 12);
+	//myfile.write(c, horizontalResolution * verticalResolution * 12);
 	myfile.close();
 }
 
@@ -375,27 +399,16 @@ Color RT_trace(const Ray& r, double depth)
 void RT_algorithm()
 {
 	Vec origin = Vec();
-	for (int u = 0; u < win_w; u++)
+	for (int u = 0; u < horizontalResolution; u++)
 	{
-		for (int v = 0; v < win_h; v++)
+		for (int v = 0; v < verticalResolution; v++)
 		{
 			Vec p = Vec(u, v, 0);
 			Ray R = Ray(origin, p);
 			image[u][v] = RT_trace(R, 1);
 		}
 	}
-	writeImageFile();
 }
-
-
-
-
-
-
-
-
-
-
 
 Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 	bool entering, double depth)
@@ -440,7 +453,7 @@ Color RT_reflect(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal, d
 int main(int, char *argv[])
 {
     parseSceneFile(argv[1]);
-	initializeImage();
+	//initializeImage();
 	RT_algorithm();
 	writeImageFile();
 	return 0;
