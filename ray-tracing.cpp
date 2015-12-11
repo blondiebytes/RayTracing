@@ -104,6 +104,10 @@ bool Color::isEqual(Color c) {
 	return red == c.red && green == c.green && blue == c.blue;
 }
 
+Color Color::cut() {
+	return Color(min(red, 1.0), min(green, 1.0), min(blue, 1.0));
+}
+
 string Color::toString() {
 	int r = (int)round(red * 255);
 	int g = (int)round(green * 255);
@@ -266,7 +270,7 @@ double Sphere::intersection(const Ray& r, double minT, double maxT) const
 	double c = k.dot(k) - (radius * radius);
 	double ac = ((b * b) - (4 * a * c));
 	if (ac < 0) {
-		return maxT + 1;
+		return 0;
 	}
 	else {
 		double t = ((-b - sqrt(ac)) / (2*a));
@@ -275,10 +279,13 @@ double Sphere::intersection(const Ray& r, double minT, double maxT) const
 			double plus = ((-b + sqrt(ac)) / 2 * a);
 			if (plus < minT || plus > maxT) {
 				// then return null if none of them worked
-				return maxT + 1;
+				return 0;
 			}
 			if (plus > t) {
 				return t;
+			}
+			else {
+				return plus;
 			}
 		}
 		return t;
@@ -287,7 +294,7 @@ double Sphere::intersection(const Ray& r, double minT, double maxT) const
 }
 
 Vec* Plane::getNormal(Vec* i) {
-	return &abcVector;
+	return &(abcVector.normalize());
 }
 
 double Plane::intersection(const Ray& r, double minT, double maxT) const
@@ -377,8 +384,10 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 		if (((r.getP1()).subtract(r.getP0())).dot(normal) > 0) {
 			n = n.scale(-1);
 		}
-		double dP = lightDirection.dot(n);
-		double dotProduct = max(dP, 0.0);
+		pair<double, Figure*> p = nearestIntersection(l_ray, .1, 1.0, false);
+		if (p.first == 0) {
+			double dP = lightDirection.dot(n);
+			double dotProduct = max(dP, 0.0);
 			// adding diffuse and specular terms for light striking 
 			Color diffuseColor = diffuseShade(obj, light, dotProduct);
 			Color specularColor = specularShade(obj, n, light,
@@ -386,8 +395,10 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 				ray);
 			Color lightColors = diffuseColor.add(specularColor);
 			// OBJ along L_Ray at i, scaled by the opacity of objects intersecting L_RAY between i and light
-			Color scaledLightColors = lightColors.multiply(obj->getTransmissivity());
+			// Color scaledLightColors = lightColors.multiply(obj->getTransmissivity());
 			newColor = newColor.add(lightColors);
+		}
+		
 	}
 	return newColor;
 }
@@ -397,13 +408,13 @@ Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 Color RT_trace(const Ray& r, double depth)
 {
 	double epsilon = .01;
-	double maxT = 1000000;
+	double maxT = 100000000000000;
 	pair<double, Figure*> pair = nearestIntersection(r, epsilon, maxT);
 	double t = pair.first;
 	Figure* figure = pair.second;
 	Ray ray = r;
 
-	if (pair.second != nullptr) {
+	if (pair.first != 0) {
 		// Point of Intersection = p0 + t*(p1-p0)
 		// add and scale for vector ->
 		Vec pOI = (ray.getP0()).add((ray.getP1().subtract(ray.getP0())).scale(t));
@@ -416,7 +427,7 @@ Color RT_trace(const Ray& r, double depth)
 
 		}
 		Vec normal = n->normalize();
-		return RT_shade(figure, r, pOI, normal, false, depth);
+		return RT_shade(figure, r, pOI, normal, false, depth).cut();
 	}
 	else {
 		return backgroundColor;
@@ -428,11 +439,26 @@ Color RT_trace(const Ray& r, double depth)
 Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 	bool entering, double depth)
 {
-	if ((obj->getTransmissivity()).isEqual(Color())) {
-		Vec norm = normal;
-		Ray transmittedRay = Ray(i, norm);
-		Vec transmittedDirection = ((norm.subtract(i)).normalize());// transmittedRay normalized
-		double dotProduct = transmittedDirection.dot(norm);
+	if (!((obj->getTransmissivity()).isEqual(Color()))) {
+		Vec n = normal;
+		Vec pOI = i;
+		// r = sin(theta t) / sin(theta i)
+		double r = 0;
+		Vec v = pOI.scale(-1);
+
+		// T = {r(n * v) - [1 - r^2 + r^2(n * v)^2]^1/2} * n - rV
+		Vec rV = v.scale(r);
+		double nDotV = n.dot(v);
+		double rNdotV = r * nDotV;
+		double middle = 1 - (r*r) + (r*r)*(nDotV * nDotV);
+		double middleSquareRooted = pow(middle, .5);
+		double left = rNdotV - middleSquareRooted;
+		Vec leftTimesN = n.scale(left);
+		Vec t = leftTimesN.subtract(rV);
+
+		Ray transmittedRay = Ray(i, t);
+		Vec transmittedDirection = t.normalize();// transmittedRay normalized
+		double dotProduct = transmittedDirection.dot(n);
 		// If no total internal reflection
 		if (dotProduct < 0) {
 			Color newColor = RT_trace(transmittedRay, depth + 1);
@@ -449,8 +475,14 @@ Color RT_transmit(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 
 Color RT_reflect(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal, double depth)
 {
-	if (((obj->getReflectivity()).isEqual(Color()))) {
-		Ray reflectedRay = Ray(i, normal);
+	if (!((obj->getReflectivity()).isEqual(Color()))) {
+		Vec pOI = i;
+		Vec n = normal;
+		Vec v = pOI.scale(-1);
+		Vec q = n.scale((n.dot(v)));
+		Vec s = q.subtract(v);
+		Vec r = v.add(s.scale(2));
+		Ray reflectedRay = Ray(i, r);
 		Color newColor = RT_trace(reflectedRay, depth + 1);
 		//Scale newColor according to the inter-object reflection coefficients kr = (krr, krg, krb) of object OBJ
 		newColor = newColor.multiply(obj->getReflectivity());
@@ -469,10 +501,10 @@ Color RT_shade(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 {
 	Color newColor = (obj->getColorAmbient()).multiply(ambient); 
 	newColor = newColor.add(RT_lights(obj, ray, i, normal));
-	//if (depth < maxDepth) {
-	//	newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
-	//	newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
-	//}
+	if (depth < maxDepth) {
+		newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
+		newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
+	}
 	return newColor;
 }
 
@@ -481,16 +513,15 @@ pair<double, Figure*> nearestIntersection(const Ray& r,
 	bool mayBeTransparent)
 {
 
-	double currentT = 1000000;
+	double currentT = 0.0;
 	Figure* currentFig = NULL;
 	for each(Figure* fig in shapeList) {
 		double intersection = fig->intersection(r, minT, maxT);
-		if (intersection < maxT) {
-			if (intersection < currentT && intersection > minT && intersection < maxT) {
-				currentT = intersection;
-				currentFig = fig;
-			}
+		if ((intersection < currentT || currentT <= 0.0) && intersection > minT && intersection < maxT) {
+			currentT = intersection;
+			currentFig = fig;
 		}
+
 	}
 
 	return pair<double, Figure*>(currentT, currentFig);
