@@ -101,6 +101,7 @@ class Figure
    Color Figure::getColorAmbient();
    Color Figure::getColorDiffuse();
    Color Figure::getColorSpecular();
+   double Figure::getShininess();
    virtual double intersection(const Ray& r, double minT, double maxT) const = 0;
    virtual Vec* getNormal(Vec* i) = 0;
    

@@ -147,6 +147,10 @@ Color Figure::getColorSpecular() {
 	return specular;
 }
 
+double Figure::getShininess() {
+	return shininess;
+}
+
 
 //Vec* Figure::getNormal(Vec* i) {
 //	return NULL;
@@ -244,7 +248,7 @@ void parseSceneFile(char* sceneName)
 
 Vec* Sphere::getNormal(Vec* i) {
 	// normal = line from the center to the point
-	return new Vec(center.subtract(*(i)));
+	return new Vec(i->subtract(center));
 }
 
 
@@ -289,9 +293,10 @@ Vec* Plane::getNormal(Vec* i) {
 double Plane::intersection(const Ray& r, double minT, double maxT) const
 {
 	Ray ray = r;
-	double t = (dScalar - ((ray.getP0()).dot(abcVector))) / (((ray.getP1()).subtract(ray.getP0())).dot(abcVector));
+	Vec p1p0 = (ray.getP1()).subtract(ray.getP0());
+	double t = (dScalar - ((ray.getP0()).dot(abcVector))) / (p1p0.dot(abcVector));
 
-	if (t == 0) {
+	if (t == 0 || t < minT || t > maxT) {
 		return maxT + 1; // will check this higher up b/c NULL = 0;
 	}
 	else {
@@ -320,21 +325,13 @@ void writeImageFile() {
 	//cout << "255" << endl;
 	for (int i = 0; i < horizontalResolution; i++) {
 		for (int j = 0; j < verticalResolution; j++) {
-			Color color = image[i][j];
-			//string s = color.toString();
+			Color color = image[j][i];
 			int r = (int)round(color.getRed() * 255);
 			int g = (int)round(color.getGreen() * 255);
 			int b = (int)round(color.getBlue() * 255);
 			myfile << r << " " << g << " " << b << endl;
-			//cout << r << " " << g << " " << b << endl;
-			//myfile.write(s, 12 + index);
-			//for (int k = 0; k < 13; k++) {
-			//	c[index + k] = s[k];
-			//}
-			//index = index + 12;
 		}
 	}
-	//myfile.write(c, horizontalResolution * verticalResolution * 12);
 	myfile.close();
 }
 
@@ -348,8 +345,9 @@ Color specularShade(Figure* obj, const Vec& normal,
 	double green = scene.getGreen() * object.getGreen();
 	double blue = scene.getBlue() * object.getBlue();
 	double m = std::max(dotProduct, 0.0);
-	Color c = Color(red, green, blue).scale(m);
-	return Color();
+	double x = pow(m, obj->getShininess());
+	Color c = Color(red, green, blue).scale(x);
+	return c;
 }
 
 
@@ -371,21 +369,25 @@ Color diffuseShade(Figure* obj, Light* light, double dotProduct)
 Color RT_lights(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal)
 {
 	Color newColor = Color();
+	Ray r = ray;
+	Vec n = normal;
 	for each (Light* light in lightList) {
 		Ray l_ray = Ray(i, light->getPosition());
 		Vec lightDirection = (((light->getPosition()).subtract(i)).normalize()); // Let lightDirection be the direction of the L_RAY --> do this by normalizing L_ray
-		double dotProduct = lightDirection.dot(normal);
-		if (dotProduct > 0) {
+		if (((r.getP1()).subtract(r.getP0())).dot(normal) > 0) {
+			n = n.scale(-1);
+		}
+		double dP = lightDirection.dot(n);
+		double dotProduct = max(dP, 0.0);
 			// adding diffuse and specular terms for light striking 
 			Color diffuseColor = diffuseShade(obj, light, dotProduct);
-			Color specularColor = specularShade(obj, normal, light,
+			Color specularColor = specularShade(obj, n, light,
 				lightDirection, dotProduct,
 				ray);
 			Color lightColors = diffuseColor.add(specularColor);
 			// OBJ along L_Ray at i, scaled by the opacity of objects intersecting L_RAY between i and light
 			Color scaledLightColors = lightColors.multiply(obj->getTransmissivity());
-			newColor = newColor.add(scaledLightColors);
-		}
+			newColor = newColor.add(lightColors);
 	}
 	return newColor;
 }
@@ -402,7 +404,7 @@ Color RT_trace(const Ray& r, double depth)
 	Ray ray = r;
 
 	if (pair.second != nullptr) {
-		// Point of Intersection = p0 + t*(P1-P0)
+		// Point of Intersection = p0 + t*(p1-p0)
 		// add and scale for vector ->
 		Vec pOI = (ray.getP0()).add((ray.getP1().subtract(ray.getP0())).scale(t));
 		Vec* n = figure->getNormal(&pOI); // surface normal for figure at t
@@ -413,7 +415,8 @@ Color RT_trace(const Ray& r, double depth)
 		if (ray.travelingThoughAnything()) {
 
 		}
-		return RT_shade(figure, r, pOI, *n, false, depth);
+		Vec normal = n->normalize();
+		return RT_shade(figure, r, pOI, normal, false, depth);
 	}
 	else {
 		return backgroundColor;
@@ -466,10 +469,10 @@ Color RT_shade(Figure* obj, const Ray& ray, const Vec& i, const Vec& normal,
 {
 	Color newColor = (obj->getColorAmbient()).multiply(ambient); 
 	newColor = newColor.add(RT_lights(obj, ray, i, normal));
-	if (depth < maxDepth) {
-		newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
-		newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
-	}
+	//if (depth < maxDepth) {
+	//	newColor = newColor.add(RT_reflect(obj, ray, i, normal, depth));
+	//	newColor = newColor.add(RT_transmit(obj, ray, i, normal, entering, depth));
+	//}
 	return newColor;
 }
 
@@ -503,8 +506,8 @@ void RT_algorithm()
 	{
 		for (int v = 0; v < verticalResolution; v++)
 		{
-			double x = minX + w / 2 + u * w;
-			double y = minY + h / 2 + v * h;
+			double x = minX + (w / 2) + u * w;
+			double y = minY + (h / 2) + v * h;
 			Vec p = Vec(x, y, zCoor);
 			Ray R = Ray(origin, p);
 			image[u][verticalResolution - v] = RT_trace(R, 1);
